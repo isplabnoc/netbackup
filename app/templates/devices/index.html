@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="row g-4">
-  <div class="col-12 col-xl-8">
+<div class="page-head">
+  <div>
+    <h1>Dispositivos</h1>
+    <p>Cadastro operacional dos equipamentos que participam das rotinas de backup.</p>
+  </div>
+</div>
+
+<div class="devices-grid">
+  <section class="panel-card devices-list">
     {% if error == "credential" %}
       <div class="alert alert-danger">Grupo de credenciais inválido. Cadastre ou selecione um grupo válido.</div>
     {% elif error == "duplicate" %}
@@ -10,22 +17,27 @@
     {% if test_result %}
       <div class="alert alert-{{ 'success' if test_result == 'ok' else 'danger' }}">{{ test_message }}</div>
     {% endif %}
+    <div class="panel-title">
+      <h2>Dispositivos cadastrados</h2>
+      <span>{{ devices | length }} total</span>
+    </div>
     <div class="table-responsive">
-      <table class="table table-sm align-middle">
+      <table class="ops-table">
         <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>
           {% for device in devices %}
           <tr>
-            <td>{{ device.hostname }}</td>
+            <td><span class="state-dot {{ '' if device.enabled else 'bad' }}"></span>{{ device.hostname }}</td>
             <td>{{ device.ip }}</td>
             <td>{{ device.vendor }}</td>
             <td>{{ device.platform }}</td>
             <td>{{ device.location or "-" }}</td>
-            <td><span class="badge text-bg-{{ 'success' if device.enabled else 'secondary' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
+            <td><span class="status-pill {{ 'ok' if device.enabled else 'never' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
             <td>
-              <details>
-                <summary>Editar</summary>
-                <form method="post" action="/devices/{{ device.id }}/update" class="panel mt-2">
+              <details class="row-actions">
+                <summary class="secondary-action">Editar</summary>
+                <div class="inline-editor">
+                <form method="post" action="/devices/{{ device.id }}/update" class="stack-form">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <input class="form-control mb-2" name="hostname" value="{{ device.hostname }}" required>
                   <input class="form-control mb-2" name="ip" value="{{ device.ip }}" required>
@@ -48,20 +60,22 @@
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button class="btn btn-sm btn-outline-info" type="submit">Testar SSH</button>
                 </form>
+                </div>
               </details>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-secondary">Nenhum dispositivo cadastrado.</td></tr>
+          <tr><td colspan="7" class="empty-panel">Nenhum dispositivo cadastrado.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
-  <div class="col-12 col-xl-4">
-    <form class="panel" method="post" action="/devices">
+  </section>
+
+  <aside class="panel-card device-form-card">
+    <form class="stack-form" method="post" action="/devices">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-      <h2 class="h6 mb-3">Novo dispositivo</h2>
+      <h2>Novo dispositivo</h2>
       <input class="form-control mb-2" name="hostname" placeholder="hostname" required>
       <input class="form-control mb-2" name="ip" placeholder="ip" required>
       <select class="form-select mb-2" name="vendor" required>
@@ -81,6 +95,6 @@
         <a class="btn btn-outline-info w-100 mt-2" href="/credentials">Criar grupo de credenciais</a>
       {% endif %}
     </form>
-  </div>
+  </aside>
 </div>
 {% endblock %}
