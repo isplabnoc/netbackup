@@ -4,7 +4,9 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
     volumes:
       - ./backups:/app/backups
       - ./logs:/app/logs
@@ -15,6 +17,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: netaudit
       POSTGRES_USER: netaudit
@@ -23,11 +26,18 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   nginx:
     image: nginx:1.27-alpine
     depends_on:
       - app
+    restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
