@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    {% if error == "duplicate" %}
+      <div class="alert alert-danger">Já existe um usuário com este e-mail.</div>
+    {% endif %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>E-mail</th><th>Nome</th><th>Perfil</th><th>Status</th><th>Criado em</th></tr></thead>
+        <tbody>
+          {% for item in users %}
+          <tr>
+            <td>{{ item.email }}</td>
+            <td>{{ item.full_name }}</td>
+            <td>{{ item.role }}</td>
+            <td><span class="badge text-bg-{{ 'success' if item.is_active else 'secondary' }}">{{ 'ativo' if item.is_active else 'inativo' }}</span></td>
+            <td>{{ item.created_at }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-secondary">Nenhum usuário cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <form class="panel" method="post" action="/users">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <h2 class="h6 mb-3">Novo usuário</h2>
+      <input class="form-control mb-2" name="email" type="email" placeholder="e-mail" required>
+      <input class="form-control mb-2" name="full_name" placeholder="nome completo" required>
+      <input class="form-control mb-2" name="password" type="password" placeholder="senha" required>
+      <select class="form-select mb-3" name="role" required>
+        {% for role in roles %}<option value="{{ role }}">{{ role }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary w-100" type="submit">Salvar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

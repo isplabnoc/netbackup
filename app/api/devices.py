@@ -5,14 +5,18 @@ from app.api.deps import require_role
 from app.core.rbac import Role
 from app.database.session import get_db
 from app.repositories.device import DeviceRepository
-from app.schemas.device import DeviceCreate, DeviceRead, DeviceUpdate
+from app.schemas.device import DeviceConnectionTestRead, DeviceCreate, DeviceRead, DeviceUpdate
 from app.services.audit import AuditService
+from app.services.connection_test import ConnectionTestService
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
 
 
 @router.get("", response_model=list[DeviceRead])
-def list_devices(db: Session = Depends(get_db)) -> list[DeviceRead]:
+def list_devices(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.viewer)),
+) -> list[DeviceRead]:
     return [DeviceRead.model_validate(device) for device in DeviceRepository(db).list(limit=1000)]
 
 
@@ -58,3 +62,16 @@ def delete_device(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
     repo.delete(device)
     AuditService(db).record("delete", "device", str(device_id), user, request.client.host if request.client else None)
+
+
+@router.post("/{device_id}/test", response_model=DeviceConnectionTestRead)
+def test_device_connection(
+    device_id: int,
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.operator)),
+) -> DeviceConnectionTestRead:
+    device = DeviceRepository(db).get(device_id)
+    if device is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found")
+    result = ConnectionTestService(db).test_device(device)
+    return DeviceConnectionTestRead(success=result.success, message=result.message)

@@ -13,7 +13,10 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 
 @router.get("")
-def reports(db: Session = Depends(get_db)) -> dict[str, object]:
+def reports(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.viewer)),
+) -> dict[str, object]:
     since = datetime.now(timezone.utc) - timedelta(days=30)
     total_devices = int(db.scalar(select(func.count()).select_from(Device)) or 0)
     backup_success = int(
@@ -36,3 +39,5 @@ def reports(db: Session = Depends(get_db)) -> dict[str, object]:
         "changes_detected": changes,
         "failures_by_vendor": [{"vendor": vendor, "total": total} for vendor, total in failures_by_vendor],
     }
+from app.api.deps import require_role
+from app.core.rbac import Role

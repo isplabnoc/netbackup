@@ -17,6 +17,7 @@ from app.services.credential import CredentialService
 from app.services.diff import DiffService
 from app.services.drivers import DRIVER_REGISTRY
 from app.services.notification import BackupSummary, NotificationService
+from app.services.settings import AppSettingsService
 
 
 @dataclass(frozen=True)
@@ -36,11 +37,40 @@ class BackupService:
         self.backups = BackupRepository(db)
         self.jobs = BackupJobRepository(db)
         self.credentials = CredentialService(db)
-        self.notifications = NotificationService(self.settings)
+        self.notifications = NotificationService.from_db(AppSettingsService(db))
 
     def run(self, device_ids: list[int] | None = None, triggered_by: str | None = None) -> BackupJob:
         selected_devices = self._select_devices(device_ids)
-        job = self.jobs.create({"status": "running", "total": len(selected_devices), "triggered_by": triggered_by})
+        job = self.jobs.create(
+            {
+                "status": "running",
+                "total": len(selected_devices),
+                "running": len(selected_devices),
+                "triggered_by": triggered_by,
+            }
+        )
+        return self.run_existing_job(job.id, [device.id for device in selected_devices])
+
+    def create_job(self, device_ids: list[int] | None = None, triggered_by: str | None = None) -> BackupJob:
+        selected_devices = self._select_devices(device_ids)
+        return self.jobs.create(
+            {
+                "status": "queued",
+                "total": len(selected_devices),
+                "running": 0,
+                "triggered_by": triggered_by,
+            }
+        )
+
+    def run_existing_job(self, job_id: int, device_ids: list[int] | None = None) -> BackupJob:
+        job = self.jobs.get(job_id)
+        if job is None:
+            raise RuntimeError(f"Backup job {job_id} not found")
+        selected_devices = self._select_devices(device_ids)
+        job.status = "running"
+        job.total = len(selected_devices)
+        job.running = len(selected_devices)
+        self.db.commit()
         results: list[BackupResult] = []
         with ThreadPoolExecutor(max_workers=self.settings.backup_workers) as executor:
             futures = [executor.submit(self._run_device_backup, device.id, job.id) for device in selected_devices]
@@ -60,8 +90,11 @@ class BackupService:
 
         job.success = sum(1 for result in results if result.status == BackupStatus.success)
         job.failed = sum(1 for result in results if result.status == BackupStatus.failed)
+        job.running = 0
         job.status = "success" if job.failed == 0 else "partial_failed"
         job.finished_at = datetime.now(timezone.utc)
+        if job.total == 0:
+            job.status = "empty"
         self.db.commit()
         self.db.refresh(job)
         self.notifications.send_backup_summary(
@@ -137,3 +170,20 @@ class BackupService:
         now = datetime.now(timezone.utc)
         safe_name = device.hostname.replace("/", "_").replace(" ", "_")
         return self.settings.backup_root / f"{now:%Y}" / f"{now:%m}" / f"{now:%d}" / safe_name
+
+
+def run_backup_job(job_id: int, device_ids: list[int] | None = None) -> None:
+    db = SessionLocal()
+    try:
+        BackupService(db).run_existing_job(job_id, device_ids)
+    except Exception as exc:
+        job = BackupJobRepository(db).get(job_id)
+        if job is not None:
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.running = 0
+            job.finished_at = datetime.now(timezone.utc)
+            db.commit()
+        backup_logger.exception("backup_job_failed", extra={"job_id": job_id})
+    finally:
+        db.close()

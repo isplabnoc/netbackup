@@ -9,7 +9,7 @@
     {% endif %}
     <div class="table-responsive">
       <table class="table table-sm align-middle">
-        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th></tr></thead>
+        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>API</th></tr></thead>
         <tbody>
           {% for device in devices %}
           <tr>
@@ -19,6 +19,7 @@
             <td>{{ device.platform }}</td>
             <td>{{ device.location or "-" }}</td>
             <td><span class="badge text-bg-{{ 'success' if device.enabled else 'secondary' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
+            <td><code>POST /api/devices/{{ device.id }}/test</code></td>
           </tr>
           {% else %}
           <tr><td colspan="6" class="text-secondary">Nenhum dispositivo cadastrado.</td></tr>

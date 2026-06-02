@@ -27,7 +27,9 @@ class BackupJobRead(BaseModel):
     total: int
     success: int
     failed: int
+    running: int
     triggered_by: str | None
+    error_message: str | None
     created_at: datetime
     finished_at: datetime | None
 

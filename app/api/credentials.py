@@ -12,7 +12,10 @@ router = APIRouter(prefix="/api/credentials", tags=["credentials"])
 
 
 @router.get("", response_model=list[CredentialRead])
-def list_credentials(db: Session = Depends(get_db)) -> list[CredentialRead]:
+def list_credentials(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.viewer)),
+) -> list[CredentialRead]:
     return [CredentialRead.model_validate(item) for item in CredentialRepository(db).list(limit=1000)]
 
 

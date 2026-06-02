@@ -28,3 +28,7 @@ class BackupRepository(BaseRepository[Backup]):
 class BackupJobRepository(BaseRepository[BackupJob]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, BackupJob)
+
+    def running_jobs(self) -> list[BackupJob]:
+        stmt = select(BackupJob).where(BackupJob.status.in_(["queued", "running"]))
+        return list(self.db.scalars(stmt).all())

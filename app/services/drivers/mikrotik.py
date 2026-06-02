@@ -15,6 +15,10 @@ class MikroTikDriver(NetworkBackupDriver):
             host=self.host,
             username=self.username,
             password=self.password,
+            fast_cli=False,
+            conn_timeout=30,
+            banner_timeout=30,
+            session_timeout=60,
         )
 
     def backup(self) -> str:

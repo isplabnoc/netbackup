@@ -7,6 +7,7 @@ from netmiko import ConnectHandler
 class NetworkBackupDriver(ABC):
     device_type: str
     backup_command: str
+    disable_paging_command: str | None = "terminal length 0"
 
     def __init__(
         self,
@@ -44,6 +45,10 @@ class NetmikoCommandDriver(NetworkBackupDriver):
             "username": self.username,
             "password": self.password,
             "secret": self.enable_secret or "",
+            "fast_cli": False,
+            "conn_timeout": 30,
+            "banner_timeout": 30,
+            "session_timeout": 60,
         }
         self.connection = ConnectHandler(**params)
         if self.enable_secret and hasattr(self.connection, "enable"):
@@ -52,7 +57,18 @@ class NetmikoCommandDriver(NetworkBackupDriver):
     def backup(self) -> str:
         if self.connection is None:
             raise RuntimeError("Connection not established")
-        return str(self.connection.send_command(self.backup_command, read_timeout=120))
+        if self.disable_paging_command:
+            try:
+                self.connection.send_command(self.disable_paging_command, read_timeout=10)
+            except Exception:
+                pass
+        config = str(self.connection.send_command(self.backup_command, read_timeout=300))
+        header = (
+            f"! Host: {self.host}\n"
+            f"! Device Type: {self.device_type}\n"
+            f"! Command: {self.backup_command}\n\n"
+        )
+        return f"{header}{config}"
 
     def disconnect(self) -> None:
         if self.connection is not None:

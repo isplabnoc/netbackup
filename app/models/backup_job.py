@@ -14,7 +14,9 @@ class BackupJob(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)
     success: Mapped[int] = mapped_column(Integer, default=0)
     failed: Mapped[int] = mapped_column(Integer, default=0)
+    running: Mapped[int] = mapped_column(Integer, default=0)
     triggered_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

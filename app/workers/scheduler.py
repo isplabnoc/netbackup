@@ -4,6 +4,7 @@ from app.core.config import get_settings
 from app.core.logging import app_logger
 from app.database.session import SessionLocal
 from app.services.backup import BackupService
+from app.services.settings import AppSettingsService
 
 scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -18,13 +19,21 @@ def run_scheduled_backup() -> None:
 
 def start_scheduler() -> None:
     settings = get_settings()
+    db = SessionLocal()
+    try:
+        scheduler_config = AppSettingsService(db).scheduler_config()
+    finally:
+        db.close()
     if scheduler.running:
+        return
+    if not scheduler_config["enabled"]:
+        app_logger.info("scheduler_disabled")
         return
     scheduler.add_job(
         run_scheduled_backup,
         trigger="cron",
-        hour=settings.daily_backup_cron_hour,
-        minute=settings.daily_backup_cron_minute,
+        hour=int(scheduler_config["hour"]),
+        minute=int(scheduler_config["minute"]),
         id="daily-network-backup",
         replace_existing=True,
     )
