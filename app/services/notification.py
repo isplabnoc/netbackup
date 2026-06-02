@@ -27,8 +27,11 @@ class NotificationService:
             f"Falhas: {summary.failed}\n"
             f"Dispositivos com erro: {', '.join(summary.failed_devices) or 'nenhum'}"
         )
-        self._send_telegram(message)
-        self._send_evolution(message)
+        try:
+            self._send_telegram(message)
+            self._send_evolution(message)
+        except Exception:
+            app_logger.exception("notification_delivery_failed")
 
     def _post_json(self, url: str, payload: dict[str, object], headers: dict[str, str] | None = None) -> None:
         parsed = urlparse(url)

@@ -45,7 +45,18 @@ class BackupService:
         with ThreadPoolExecutor(max_workers=self.settings.backup_workers) as executor:
             futures = [executor.submit(self._run_device_backup, device.id, job.id) for device in selected_devices]
             for future in as_completed(futures):
-                results.append(future.result())
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    backup_logger.exception("backup_worker_unhandled")
+                    results.append(
+                        BackupResult(
+                            device_id=0,
+                            hostname="unknown",
+                            status=BackupStatus.failed,
+                            error_message=str(exc),
+                        )
+                    )
 
         job.success = sum(1 for result in results if result.status == BackupStatus.success)
         job.failed = sum(1 for result in results if result.status == BackupStatus.failed)

@@ -6,12 +6,14 @@ Chart.defaults.font.family = 'Inter, system-ui, -apple-system, BlinkMacSystemFon
 
 const statusDonut = document.getElementById("statusDonut");
 if (statusDonut) {
+  const success = Number(metrics.backup_success || 0);
+  const failed = Number(metrics.backup_failed || 0);
   new Chart(statusDonut, {
     type: "doughnut",
     data: {
       labels: ["OK", "Falha"],
       datasets: [{
-        data: [685, 25],
+        data: [success, failed],
         backgroundColor: ["#35c64a", "#ef4044"],
         borderWidth: 0,
         hoverOffset: 2

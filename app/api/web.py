@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
@@ -14,8 +15,10 @@ from app.repositories.credential import CredentialRepository
 from app.repositories.device import DeviceRepository
 from app.repositories.diff import DiffRepository
 from app.repositories.user import UserRepository
+from app.schemas.credential import CredentialCreate
 from app.schemas.device import DeviceCreate
 from app.services.backup import BackupService
+from app.services.credential import CredentialService
 from app.services.dashboard import DashboardService
 
 templates = Jinja2Templates(directory="app/templates")
@@ -77,6 +80,7 @@ def devices_page(request: Request, db: Session = Depends(get_db), user=Depends(g
             "credentials": CredentialRepository(db).list(limit=1000),
             "vendors": [vendor.value for vendor in Vendor],
             "csrf_token": generate_csrf_token(request),
+            "error": request.query_params.get("error"),
         },
     )
 
@@ -95,17 +99,70 @@ def devices_create(
     _user=Depends(require_role(Role.operator)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
-    DeviceRepository(db).create(
-        DeviceCreate(
-            hostname=hostname,
-            ip=ip,
-            vendor=vendor,
-            platform=platform,
-            credential_group_id=credential_group_id,
-            location=location,
-        ).model_dump(mode="json")
-    )
+    if CredentialRepository(db).get(credential_group_id) is None:
+        return RedirectResponse("/devices?error=credential", status_code=303)
+    try:
+        DeviceRepository(db).create(
+            DeviceCreate(
+                hostname=hostname,
+                ip=ip,
+                vendor=vendor,
+                platform=platform,
+                credential_group_id=credential_group_id,
+                location=location,
+            ).model_dump(mode="json")
+        )
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse("/devices?error=duplicate", status_code=303)
     return RedirectResponse("/devices", status_code=303)
+
+
+@router.get("/credentials", response_class=HTMLResponse)
+def credentials_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.operator)),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "credentials/index.html",
+        {
+            "request": request,
+            "user": user,
+            "credentials": CredentialRepository(db).list(limit=1000),
+            "csrf_token": generate_csrf_token(request),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@router.post("/credentials")
+def credentials_create(
+    request: Request,
+    name: str = Form(),
+    username: str = Form(),
+    password: str = Form(),
+    enable_secret: str | None = Form(default=None),
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.operator)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    try:
+        CredentialService(db).create(
+            CredentialCreate(
+                name=name,
+                username=username,
+                password=password,
+                enable_secret=enable_secret or None,
+            )
+        )
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse("/credentials?error=duplicate", status_code=303)
+    except RuntimeError:
+        return RedirectResponse("/credentials?error=fernet", status_code=303)
+    return RedirectResponse("/credentials", status_code=303)
 
 
 @router.get("/backups", response_class=HTMLResponse)

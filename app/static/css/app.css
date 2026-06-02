@@ -330,6 +330,7 @@ button, input, select { font: inherit; }
 }
 .status-pill.ok { background: #18843a; }
 .status-pill.fail { background: #d73e45; }
+.status-pill.never { background: #65758b; }
 .action-row { display: flex; gap: 7px; }
 .mini-action {
   width: 34px;
@@ -406,6 +407,7 @@ button, input, select { font: inherit; }
 .tag.success { background: #18843a; }
 .tag.danger { background: #cf3440; }
 .tag.info { background: #2175de; }
+.empty-panel { padding: 18px; color: var(--muted); }
 
 .history-card, .diff-preview { padding-bottom: 14px; }
 .history-card h2 { padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
