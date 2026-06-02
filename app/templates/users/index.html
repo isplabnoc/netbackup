@@ -7,7 +7,7 @@
     {% endif %}
     <div class="table-responsive">
       <table class="table table-sm align-middle">
-        <thead><tr><th>E-mail</th><th>Nome</th><th>Perfil</th><th>Status</th><th>Criado em</th></tr></thead>
+        <thead><tr><th>E-mail</th><th>Nome</th><th>Perfil</th><th>Status</th><th>Criado em</th><th>Ações</th></tr></thead>
         <tbody>
           {% for item in users %}
           <tr>
@@ -16,9 +16,17 @@
             <td>{{ item.role }}</td>
             <td><span class="badge text-bg-{{ 'success' if item.is_active else 'secondary' }}">{{ 'ativo' if item.is_active else 'inativo' }}</span></td>
             <td>{{ item.created_at }}</td>
+            <td>
+              {% if item.id != user.id %}
+              <form method="post" action="/users/{{ item.id }}/toggle">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-outline-warning" type="submit">{{ 'Desativar' if item.is_active else 'Ativar' }}</button>
+              </form>
+              {% endif %}
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="5" class="text-secondary">Nenhum usuário cadastrado.</td></tr>
+          <tr><td colspan="6" class="text-secondary">Nenhum usuário cadastrado.</td></tr>
           {% endfor %}
         </tbody>
       </table>

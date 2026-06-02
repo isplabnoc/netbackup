@@ -39,6 +39,10 @@ class NotificationService:
         except Exception:
             app_logger.exception("notification_delivery_failed")
 
+    def send_test(self) -> None:
+        self._send_telegram("NetBackup Pro: teste de notificacao Telegram")
+        self._send_evolution("NetBackup Pro: teste de notificacao Evolution API")
+
     def _post_json(self, url: str, payload: dict[str, object], headers: dict[str, str] | None = None) -> None:
         parsed = urlparse(url)
         conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection

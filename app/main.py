@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
-from app.api import auth, backups, credentials, devices, diffs, reports, web
+from app.api import auth, backups, credentials, devices, diffs, health, reports, web
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
@@ -33,7 +33,12 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, same_site="lax", https_only=False)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",
+    https_only=settings.secure_cookies,
+)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
@@ -54,4 +59,5 @@ app.include_router(devices.router)
 app.include_router(backups.router)
 app.include_router(diffs.router)
 app.include_router(reports.router)
+app.include_router(health.router)
 app.include_router(web.router)

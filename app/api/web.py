@@ -1,6 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from urllib.parse import quote
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,7 @@ from app.core.rbac import Role
 from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
+    encrypt_secret,
     generate_csrf_token,
     get_password_hash,
     validate_csrf_token,
@@ -16,7 +18,8 @@ from app.core.security import (
 )
 from app.database.session import get_db
 from app.models.device import Vendor
-from app.repositories.backup import BackupRepository
+from app.models.user import User
+from app.repositories.backup import BackupJobRepository, BackupRepository
 from app.repositories.credential import CredentialRepository
 from app.repositories.device import DeviceRepository
 from app.repositories.diff import DiffRepository
@@ -24,9 +27,14 @@ from app.repositories.user import UserRepository
 from app.schemas.credential import CredentialCreate
 from app.schemas.device import DeviceCreate
 from app.services.backup import BackupService, run_backup_job
+from app.services.audit import AuditService
 from app.services.credential import CredentialService
 from app.services.dashboard import DashboardService
+from app.services.connection_test import ConnectionTestService
 from app.services.settings import AppSettingsService
+from app.services.notification import NotificationService
+from app.services.retention import RetentionService
+from app.workers.scheduler import reload_scheduler
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter(tags=["web"])
@@ -50,6 +58,7 @@ def login_submit(
     user = UserRepository(db).get_by_email(email)
     if user is None or not verify_password(password, user.hashed_password):
         return RedirectResponse("/login?error=1", status_code=303)
+    AuditService(db).record("login", "user", str(user.id), user, request.client.host if request.client else None)
     token = create_access_token(user.email, user.role)
     response = RedirectResponse("/", status_code=303)
     response.set_cookie("access_token", f"Bearer {token}", httponly=True, samesite="lax")
@@ -57,7 +66,12 @@ def login_submit(
 
 
 @router.post("/logout")
-def web_logout() -> RedirectResponse:
+def web_logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+) -> RedirectResponse:
+    AuditService(db).record("logout", "user", str(user.id), user, request.client.host if request.client else None)
     response = RedirectResponse("/login", status_code=303)
     response.delete_cookie("access_token")
     return response
@@ -88,6 +102,8 @@ def devices_page(request: Request, db: Session = Depends(get_db), user=Depends(g
             "vendors": [vendor.value for vendor in Vendor],
             "csrf_token": generate_csrf_token(request),
             "error": request.query_params.get("error"),
+            "test_result": request.query_params.get("test_result"),
+            "test_message": request.query_params.get("test_message"),
         },
     )
 
@@ -103,13 +119,13 @@ def devices_create(
     location: str | None = Form(default=None),
     csrf_token: str = Form(),
     db: Session = Depends(get_db),
-    _user=Depends(require_role(Role.operator)),
+    user=Depends(require_role(Role.operator)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
     if CredentialRepository(db).get(credential_group_id) is None:
         return RedirectResponse("/devices?error=credential", status_code=303)
     try:
-        DeviceRepository(db).create(
+        device = DeviceRepository(db).create(
             DeviceCreate(
                 hostname=hostname,
                 ip=ip,
@@ -119,9 +135,95 @@ def devices_create(
                 location=location,
             ).model_dump(mode="json")
         )
+        AuditService(db).record("create", "device", str(device.id), user, request.client.host if request.client else None)
     except IntegrityError:
         db.rollback()
         return RedirectResponse("/devices?error=duplicate", status_code=303)
+    return RedirectResponse("/devices", status_code=303)
+
+
+@router.post("/devices/{device_id}/test")
+def devices_test(
+    device_id: int,
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.operator)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    device = DeviceRepository(db).get(device_id)
+    if device is None:
+        return RedirectResponse("/devices?error=notfound", status_code=303)
+    result = ConnectionTestService(db).test_device(device)
+    AuditService(db).record(
+        "test",
+        "device",
+        str(device.id),
+        user,
+        request.client.host if request.client else None,
+        {"success": result.success, "message": result.message},
+    )
+    status = "ok" if result.success else "fail"
+    return RedirectResponse(
+        f"/devices?test_result={status}&test_message={quote(result.message)}",
+        status_code=303,
+    )
+
+
+@router.post("/devices/{device_id}/update")
+def devices_update(
+    device_id: int,
+    request: Request,
+    hostname: str = Form(),
+    ip: str = Form(),
+    vendor: Vendor = Form(),
+    platform: str = Form(),
+    credential_group_id: int = Form(),
+    location: str | None = Form(default=None),
+    enabled: str | None = Form(default=None),
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.operator)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    repo = DeviceRepository(db)
+    device = repo.get(device_id)
+    if device is None:
+        return RedirectResponse("/devices?error=notfound", status_code=303)
+    try:
+        repo.update(
+            device,
+            {
+                "hostname": hostname,
+                "ip": ip,
+                "vendor": vendor.value,
+                "platform": platform,
+                "credential_group_id": credential_group_id,
+                "location": location,
+                "enabled": enabled == "on",
+            },
+        )
+        AuditService(db).record("update", "device", str(device.id), user, request.client.host if request.client else None)
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse("/devices?error=duplicate", status_code=303)
+    return RedirectResponse("/devices", status_code=303)
+
+
+@router.post("/devices/{device_id}/delete")
+def devices_delete(
+    device_id: int,
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    repo = DeviceRepository(db)
+    device = repo.get(device_id)
+    if device is not None:
+        repo.delete(device)
+        AuditService(db).record("delete", "device", str(device_id), user, request.client.host if request.client else None)
     return RedirectResponse("/devices", status_code=303)
 
 
@@ -152,11 +254,11 @@ def credentials_create(
     enable_secret: str | None = Form(default=None),
     csrf_token: str = Form(),
     db: Session = Depends(get_db),
-    _user=Depends(require_role(Role.operator)),
+    user=Depends(require_role(Role.operator)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
     try:
-        CredentialService(db).create(
+        credential = CredentialService(db).create(
             CredentialCreate(
                 name=name,
                 username=username,
@@ -164,11 +266,72 @@ def credentials_create(
                 enable_secret=enable_secret or None,
             )
         )
+        AuditService(db).record(
+            "create", "credential", str(credential.id), user, request.client.host if request.client else None
+        )
     except IntegrityError:
         db.rollback()
         return RedirectResponse("/credentials?error=duplicate", status_code=303)
     except RuntimeError:
         return RedirectResponse("/credentials?error=fernet", status_code=303)
+    return RedirectResponse("/credentials", status_code=303)
+
+
+@router.post("/credentials/{credential_id}/update")
+def credentials_update(
+    credential_id: int,
+    request: Request,
+    name: str = Form(),
+    username: str = Form(),
+    password: str | None = Form(default=None),
+    enable_secret: str | None = Form(default=None),
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.operator)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    repo = CredentialRepository(db)
+    credential = repo.get(credential_id)
+    if credential is None:
+        return RedirectResponse("/credentials?error=notfound", status_code=303)
+    data = {"name": name, "username": username}
+    if password:
+        data["password"] = encrypt_secret(password)
+    if enable_secret:
+        data["enable_secret"] = encrypt_secret(enable_secret)
+    try:
+        repo.update(credential, data)
+        AuditService(db).record(
+            "update", "credential", str(credential.id), user, request.client.host if request.client else None
+        )
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse("/credentials?error=duplicate", status_code=303)
+    except RuntimeError:
+        return RedirectResponse("/credentials?error=fernet", status_code=303)
+    return RedirectResponse("/credentials", status_code=303)
+
+
+@router.post("/credentials/{credential_id}/delete")
+def credentials_delete(
+    credential_id: int,
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    repo = CredentialRepository(db)
+    credential = repo.get(credential_id)
+    if credential is not None:
+        try:
+            repo.delete(credential)
+            AuditService(db).record(
+                "delete", "credential", str(credential_id), user, request.client.host if request.client else None
+            )
+        except IntegrityError:
+            db.rollback()
+            return RedirectResponse("/credentials?error=inuse", status_code=303)
     return RedirectResponse("/credentials", status_code=303)
 
 
@@ -180,6 +343,7 @@ def backups_page(request: Request, db: Session = Depends(get_db), user=Depends(g
             "request": request,
             "user": user,
             "backups": BackupRepository(db).list(limit=500),
+            "jobs": BackupJobRepository(db).list(limit=100),
             "csrf_token": generate_csrf_token(request),
         },
     )
@@ -195,6 +359,7 @@ def web_run_backups(
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
     job = BackupService(db).create_job(triggered_by=user.email)
+    AuditService(db).record("run", "backup_job", str(job.id), user, request.client.host if request.client else None)
     background_tasks.add_task(run_backup_job, job.id, None)
     return RedirectResponse("/backups", status_code=303)
 
@@ -221,6 +386,7 @@ def settings_page(
             "user": user,
             "scheduler": settings_service.scheduler_config(),
             "notifications": settings_service.notification_config(),
+            "retention_days": RetentionService(db).retention_days(),
             "csrf_token": generate_csrf_token(request),
         },
     )
@@ -237,9 +403,10 @@ def settings_save(
     evolution_api_url: str | None = Form(default=None),
     evolution_api_token: str | None = Form(default=None),
     evolution_api_instance: str | None = Form(default=None),
+    retention_days: int = Form(default=365),
     csrf_token: str = Form(),
     db: Session = Depends(get_db),
-    _user=Depends(require_role(Role.admin)),
+    user=Depends(require_role(Role.admin)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
     settings_service = AppSettingsService(db)
@@ -251,6 +418,35 @@ def settings_save(
     settings_service.set("evolution.api_url", evolution_api_url or None)
     settings_service.set("evolution.api_token", evolution_api_token or None, encrypted=True)
     settings_service.set("evolution.api_instance", evolution_api_instance or None)
+    settings_service.set("retention.days", str(retention_days))
+    reload_scheduler()
+    AuditService(db).record("update", "settings", "system", user, request.client.host if request.client else None)
+    return RedirectResponse("/settings", status_code=303)
+
+
+@router.post("/settings/test-notifications")
+def settings_test_notifications(
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    NotificationService.from_db(AppSettingsService(db)).send_test()
+    AuditService(db).record("test", "notifications", "system", user, request.client.host if request.client else None)
+    return RedirectResponse("/settings", status_code=303)
+
+
+@router.post("/settings/run-retention")
+def settings_run_retention(
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    RetentionService(db).cleanup()
+    AuditService(db).record("run", "retention", "system", user, request.client.host if request.client else None)
     return RedirectResponse("/settings", status_code=303)
 
 
@@ -282,11 +478,11 @@ def users_create(
     role: Role = Form(),
     csrf_token: str = Form(),
     db: Session = Depends(get_db),
-    _user=Depends(require_role(Role.admin)),
+    user=Depends(require_role(Role.admin)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
     try:
-        UserRepository(db).create(
+        created_user = UserRepository(db).create(
             {
                 "email": email,
                 "full_name": full_name,
@@ -295,7 +491,35 @@ def users_create(
                 "is_active": True,
             }
         )
+        AuditService(db).record(
+            "create", "user", str(created_user.id), user, request.client.host if request.client else None
+        )
     except IntegrityError:
         db.rollback()
         return RedirectResponse("/users?error=duplicate", status_code=303)
+    return RedirectResponse("/users", status_code=303)
+
+
+@router.post("/users/{user_id}/toggle")
+def users_toggle(
+    user_id: int,
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    repo = UserRepository(db)
+    user = repo.get(user_id)
+    if user is not None and user.id != current_user.id:
+        user.is_active = not user.is_active
+        db.commit()
+        AuditService(db).record(
+            "toggle",
+            "user",
+            str(user.id),
+            current_user,
+            request.client.host if request.client else None,
+            {"is_active": user.is_active},
+        )
     return RedirectResponse("/users", status_code=303)

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     environment: str = "local"
     database_url: str = "postgresql+psycopg://netaudit:netaudit@localhost:5432/netaudit"
     secret_key: str = "change-me"
+    secure_cookies: bool = False
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 480
     fernet_key: str = "change-me"

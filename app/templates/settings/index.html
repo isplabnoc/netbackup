@@ -25,7 +25,22 @@
       <input class="form-control mb-2" name="evolution_api_token" type="password" placeholder="API token" value="{{ notifications.evolution_api_token or '' }}">
       <input class="form-control mb-3" name="evolution_api_instance" placeholder="Instância" value="{{ notifications.evolution_api_instance or '' }}">
     </div>
+    <div class="col-12 col-xl-4">
+      <h2 class="h6 mb-3">Retenção</h2>
+      <label class="form-label">Dias de retenção</label>
+      <input class="form-control mb-3" name="retention_days" type="number" min="1" value="{{ retention_days }}" required>
+    </div>
   </div>
   <button class="btn btn-primary" type="submit">Salvar configurações</button>
 </form>
+<div class="d-flex gap-2 mt-3">
+  <form method="post" action="/settings/test-notifications">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn btn-outline-info" type="submit">Enviar teste de notificações</button>
+  </form>
+  <form method="post" action="/settings/run-retention">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn btn-outline-warning" type="submit">Executar retenção agora</button>
+  </form>
+</div>
 {% endblock %}

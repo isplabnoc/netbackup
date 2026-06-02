@@ -7,9 +7,12 @@
     {% elif error == "duplicate" %}
       <div class="alert alert-danger">Já existe um dispositivo com este IP.</div>
     {% endif %}
+    {% if test_result %}
+      <div class="alert alert-{{ 'success' if test_result == 'ok' else 'danger' }}">{{ test_message }}</div>
+    {% endif %}
     <div class="table-responsive">
       <table class="table table-sm align-middle">
-        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>API</th></tr></thead>
+        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>
           {% for device in devices %}
           <tr>
@@ -19,7 +22,34 @@
             <td>{{ device.platform }}</td>
             <td>{{ device.location or "-" }}</td>
             <td><span class="badge text-bg-{{ 'success' if device.enabled else 'secondary' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
-            <td><code>POST /api/devices/{{ device.id }}/test</code></td>
+            <td>
+              <details>
+                <summary>Editar</summary>
+                <form method="post" action="/devices/{{ device.id }}/update" class="panel mt-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input class="form-control mb-2" name="hostname" value="{{ device.hostname }}" required>
+                  <input class="form-control mb-2" name="ip" value="{{ device.ip }}" required>
+                  <select class="form-select mb-2" name="vendor" required>
+                    {% for vendor in vendors %}<option value="{{ vendor }}" {% if vendor == device.vendor %}selected{% endif %}>{{ vendor }}</option>{% endfor %}
+                  </select>
+                  <input class="form-control mb-2" name="platform" value="{{ device.platform }}" required>
+                  <select class="form-select mb-2" name="credential_group_id" required>
+                    {% for credential in credentials %}<option value="{{ credential.id }}" {% if credential.id == device.credential_group_id %}selected{% endif %}>{{ credential.name }}</option>{% endfor %}
+                  </select>
+                  <input class="form-control mb-2" name="location" value="{{ device.location or '' }}">
+                  <label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="enabled" {% if device.enabled %}checked{% endif %}> Ativo</label>
+                  <button class="btn btn-sm btn-primary" type="submit">Salvar</button>
+                </form>
+                <form method="post" action="/devices/{{ device.id }}/delete" class="mt-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-sm btn-danger" type="submit">Excluir</button>
+                </form>
+                <form method="post" action="/devices/{{ device.id }}/test" class="mt-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button class="btn btn-sm btn-outline-info" type="submit">Testar SSH</button>
+                </form>
+              </details>
+            </td>
           </tr>
           {% else %}
           <tr><td colspan="6" class="text-secondary">Nenhum dispositivo cadastrado.</td></tr>
