@@ -177,6 +177,28 @@ curl -X POST https://backup.seudominio.com/api/auth/bootstrap-admin \
 https://backup.seudominio.com/login
 ```
 
+## Publicar No GitHub
+
+Crie um token no GitHub com permissao para criar repositorio e fazer push. Depois execute:
+
+```bash
+export GITHUB_TOKEN='ghp_seu_token'
+REPO_NAME=netbackup-pro PRIVATE=true bash scripts/publish_github.sh
+```
+
+Para publicar em uma organizacao:
+
+```bash
+export GITHUB_TOKEN='ghp_seu_token'
+GITHUB_ORG=sua-org REPO_NAME=netbackup-pro PRIVATE=true bash scripts/publish_github.sh
+```
+
+No EasyPanel, use o repositorio criado e selecione o arquivo:
+
+```text
+docker-compose.easypanel.yml
+```
+
 4. Rotacione e proteja:
 
 - `SECRET_KEY`
