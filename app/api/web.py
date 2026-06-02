@@ -2,7 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from urllib.parse import quote
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_role
@@ -337,13 +337,23 @@ def credentials_delete(
 
 @router.get("/backups", response_class=HTMLResponse)
 def backups_page(request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)) -> HTMLResponse:
+    backups = []
+    jobs = []
+    load_error = None
+    try:
+        backups = BackupRepository(db).list_recent(limit=500)
+        jobs = BackupJobRepository(db).list_recent(limit=100)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        load_error = str(exc)
     return templates.TemplateResponse(
         "backups/index.html",
         {
             "request": request,
             "user": user,
-            "backups": BackupRepository(db).list(limit=500),
-            "jobs": BackupJobRepository(db).list(limit=100),
+            "backups": backups,
+            "jobs": jobs,
+            "load_error": load_error,
             "csrf_token": generate_csrf_token(request),
         },
     )

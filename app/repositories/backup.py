@@ -1,5 +1,5 @@
 from sqlalchemy import desc, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.backup import Backup, BackupStatus
 from app.models.backup_job import BackupJob
@@ -24,6 +24,15 @@ class BackupRepository(BaseRepository[Backup]):
         stmt = select(func.count()).select_from(Backup).where(Backup.status == status.value)
         return int(self.db.scalar(stmt) or 0)
 
+    def list_recent(self, limit: int = 500) -> list[Backup]:
+        stmt = (
+            select(Backup)
+            .options(joinedload(Backup.device))
+            .order_by(desc(Backup.created_at), desc(Backup.id))
+            .limit(limit)
+        )
+        return list(self.db.scalars(stmt).all())
+
 
 class BackupJobRepository(BaseRepository[BackupJob]):
     def __init__(self, db: Session) -> None:
@@ -31,4 +40,8 @@ class BackupJobRepository(BaseRepository[BackupJob]):
 
     def running_jobs(self) -> list[BackupJob]:
         stmt = select(BackupJob).where(BackupJob.status.in_(["queued", "running"]))
+        return list(self.db.scalars(stmt).all())
+
+    def list_recent(self, limit: int = 100) -> list[BackupJob]:
+        stmt = select(BackupJob).order_by(desc(BackupJob.created_at), desc(BackupJob.id)).limit(limit)
         return list(self.db.scalars(stmt).all())
