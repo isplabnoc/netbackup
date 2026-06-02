@@ -4,6 +4,7 @@ set -Eeuo pipefail
 APP_NAME="${APP_NAME:-NetBackup Pro}"
 APP_DIR="${APP_DIR:-/opt/netbackup-pro}"
 APP_PORT="${APP_PORT:-8080}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 REPO_URL="${REPO_URL:-}"
 REPO_REF="${REPO_REF:-main}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
@@ -65,6 +66,56 @@ random_secret() {
 
 random_hex_secret() {
   openssl rand -hex 32
+}
+
+env_value() {
+  local file="$1"
+  local key="$2"
+  grep -E "^${key}=" "${file}" | tail -n 1 | cut -d= -f2- || true
+}
+
+append_missing_postgres_env() {
+  local env_file="$1"
+  local database_url
+  database_url="$(env_value "${env_file}" "DATABASE_URL")"
+  if [[ -z "${database_url}" ]]; then
+    return
+  fi
+
+  local parsed
+  parsed="$(python3 - "${database_url}" <<'PY'
+from urllib.parse import urlparse, unquote
+import sys
+
+url = urlparse(sys.argv[1])
+db = url.path.lstrip("/") or "netaudit"
+user = unquote(url.username or "netaudit")
+password = unquote(url.password or "")
+print(db)
+print(user)
+print(password)
+PY
+)"
+  local parsed_db parsed_user parsed_password
+  parsed_db="$(printf '%s\n' "${parsed}" | sed -n '1p')"
+  parsed_user="$(printf '%s\n' "${parsed}" | sed -n '2p')"
+  parsed_password="$(printf '%s\n' "${parsed}" | sed -n '3p')"
+
+  if ! grep -q '^POSTGRES_DB=' "${env_file}"; then
+    printf 'POSTGRES_DB=%s\n' "${parsed_db}" >>"${env_file}"
+  fi
+  if ! grep -q '^POSTGRES_USER=' "${env_file}"; then
+    printf 'POSTGRES_USER=%s\n' "${parsed_user}" >>"${env_file}"
+  fi
+  if ! grep -q '^POSTGRES_PASSWORD=' "${env_file}" && [[ -n "${parsed_password}" ]]; then
+    printf 'POSTGRES_PASSWORD=%s\n' "${parsed_password}" >>"${env_file}"
+  fi
+  if ! grep -q '^POSTGRES_PORT=' "${env_file}"; then
+    printf 'POSTGRES_PORT=%s\n' "${POSTGRES_PORT}" >>"${env_file}"
+  fi
+  if ! grep -q '^APP_PORT=' "${env_file}"; then
+    printf 'APP_PORT=%s\n' "${APP_PORT}" >>"${env_file}"
+  fi
 }
 
 install_base_packages() {
@@ -130,6 +181,14 @@ prepare_app_dir() {
 write_env() {
   local env_file="${APP_DIR}/.env"
 
+  if [[ -f "${env_file}" && "${REGENERATE_ENV:-false}" != "true" ]]; then
+    log "Mantendo ${env_file} existente. Use REGENERATE_ENV=true para recriar."
+    append_missing_postgres_env "${env_file}"
+    POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-$(env_value "${env_file}" "POSTGRES_PASSWORD")}"
+    ADMIN_PASSWORD="${ADMIN_PASSWORD:-$(random_hex_secret)}"
+    return
+  fi
+
   if [[ -z "${POSTGRES_PASSWORD}" ]]; then
     POSTGRES_PASSWORD="$(random_hex_secret)"
   fi
@@ -141,6 +200,11 @@ write_env() {
   cat >"${env_file}" <<EOF
 APP_NAME=${APP_NAME}
 ENVIRONMENT=production
+APP_PORT=${APP_PORT}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_PORT=${POSTGRES_PORT}
 DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 SECRET_KEY=$(random_secret)
 FERNET_KEY=$(random_urlsafe_fernet_key)
@@ -160,20 +224,7 @@ EOF
 }
 
 patch_compose_for_production() {
-  log "Ajustando docker-compose.yml para porta ${APP_PORT} e senha do PostgreSQL"
-  python3 - "${APP_DIR}/docker-compose.yml" "${APP_PORT}" "${POSTGRES_DB}" "${POSTGRES_USER}" "${POSTGRES_PASSWORD}" <<'PY'
-from pathlib import Path
-import sys
-
-compose = Path(sys.argv[1])
-app_port, db, user, password = sys.argv[2:6]
-text = compose.read_text()
-text = text.replace('      POSTGRES_DB: netaudit', f'      POSTGRES_DB: {db}')
-text = text.replace('      POSTGRES_USER: netaudit', f'      POSTGRES_USER: {user}')
-text = text.replace('      POSTGRES_PASSWORD: netaudit', f'      POSTGRES_PASSWORD: {password}')
-text = text.replace('      - "8080:80"', f'      - "{app_port}:80"')
-compose.write_text(text)
-PY
+  log "docker-compose.yml usa variaveis do .env; nenhum patch necessario"
 }
 
 configure_firewall() {
