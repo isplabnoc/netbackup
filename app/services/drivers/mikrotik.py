@@ -13,6 +13,7 @@ class MikroTikDriver(NetworkBackupDriver):
         self.connection = ConnectHandler(
             device_type=self.device_type,
             host=self.host,
+            port=self.port,
             username=self.username,
             password=self.password,
             fast_cli=False,
@@ -40,7 +41,7 @@ class MikroTikDriver(NetworkBackupDriver):
             return
         self.output_dir.mkdir(parents=True, exist_ok=True)
         local_path = self.output_dir / backup_name
-        transport = paramiko.Transport((self.host, 22))
+        transport = paramiko.Transport((self.host, self.port))
         try:
             transport.connect(username=self.username, password=self.password)
             sftp = paramiko.SFTPClient.from_transport(transport)

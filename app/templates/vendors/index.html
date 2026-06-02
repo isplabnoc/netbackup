@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Vendors / Plataformas</h1>
+    <p>Cobertura multi-vendor cadastrada no ambiente.</p>
+  </div>
+</div>
+
+<section class="panel-card">
+  <table class="ops-table">
+    <thead><tr><th>Vendor</th><th>Dispositivos</th><th>Ativos</th><th>Plataformas cadastradas</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.vendor }}</td>
+        <td>{{ row.total }}</td>
+        <td>{{ row.enabled }}</td>
+        <td>{{ row.platforms | join(', ') if row.platforms else '-' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

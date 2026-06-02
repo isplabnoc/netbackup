@@ -23,24 +23,26 @@
     </div>
     <div class="table-responsive">
       <table class="ops-table">
-        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Hostname</th><th>IP</th><th>SSH</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>
           {% for device in devices %}
-          <tr>
+          <tr id="device-{{ device.id }}">
             <td><span class="state-dot {{ '' if device.enabled else 'bad' }}"></span>{{ device.hostname }}</td>
             <td>{{ device.ip }}</td>
+            <td>{{ device.ssh_port }}</td>
             <td>{{ device.vendor }}</td>
             <td>{{ device.platform }}</td>
             <td>{{ device.location or "-" }}</td>
             <td><span class="status-pill {{ 'ok' if device.enabled else 'never' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
             <td>
               <details class="row-actions">
-                <summary class="secondary-action">Editar</summary>
+                <summary class="mini-action amber" title="Editar"><i data-lucide="pencil"></i></summary>
                 <div class="inline-editor">
                 <form method="post" action="/devices/{{ device.id }}/update" class="stack-form">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <input class="form-control mb-2" name="hostname" value="{{ device.hostname }}" required>
                   <input class="form-control mb-2" name="ip" value="{{ device.ip }}" required>
+                  <input class="form-control mb-2" name="ssh_port" type="number" min="1" max="65535" value="{{ device.ssh_port or 22 }}" required>
                   <select class="form-select mb-2" name="vendor" required>
                     {% for vendor in vendors %}<option value="{{ vendor }}" {% if vendor == device.vendor %}selected{% endif %}>{{ vendor }}</option>{% endfor %}
                   </select>
@@ -50,22 +52,22 @@
                   </select>
                   <input class="form-control mb-2" name="location" value="{{ device.location or '' }}">
                   <label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="enabled" {% if device.enabled %}checked{% endif %}> Ativo</label>
-                  <button class="btn btn-sm btn-primary" type="submit">Salvar</button>
+                  <button class="primary-action" type="submit">Salvar</button>
                 </form>
-                <form method="post" action="/devices/{{ device.id }}/delete" class="mt-2">
+                <form method="post" action="/devices/{{ device.id }}/delete">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button class="btn btn-sm btn-danger" type="submit">Excluir</button>
+                  <button class="mini-action red" type="submit" title="Excluir"><i data-lucide="trash-2"></i></button>
                 </form>
-                <form method="post" action="/devices/{{ device.id }}/test" class="mt-2">
+                <form method="post" action="/devices/{{ device.id }}/test">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                  <button class="btn btn-sm btn-outline-info" type="submit">Testar SSH</button>
+                  <button class="mini-action cyan" type="submit" title="Testar SSH"><i data-lucide="terminal"></i></button>
                 </form>
                 </div>
               </details>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="empty-panel">Nenhum dispositivo cadastrado.</td></tr>
+          <tr><td colspan="8" class="empty-panel">Nenhum dispositivo cadastrado.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -78,6 +80,7 @@
       <h2>Novo dispositivo</h2>
       <input class="form-control mb-2" name="hostname" placeholder="hostname" required>
       <input class="form-control mb-2" name="ip" placeholder="ip" required>
+      <input class="form-control mb-2" name="ssh_port" type="number" min="1" max="65535" value="22" placeholder="porta SSH" required>
       <select class="form-select mb-2" name="vendor" required>
         {% for vendor in vendors %}<option value="{{ vendor }}">{{ vendor }}</option>{% endfor %}
       </select>

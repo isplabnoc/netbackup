@@ -68,8 +68,8 @@
             <td>{{ row.last_backup }}</td>
             <td>
               <div class="action-row">
-                <a class="mini-action cyan" href="/devices" title="Visualizar"><i data-lucide="eye"></i></a>
-                <a class="mini-action amber" href="/diffs" title="Diff"><i data-lucide="scan-text"></i></a>
+                <a class="mini-action cyan" href="/devices#device-{{ row.id }}" title="Visualizar"><i data-lucide="eye"></i></a>
+                <a class="mini-action amber" href="/diffs?device_id={{ row.id }}" title="Diff"><i data-lucide="scan-text"></i></a>
                 {% if row.backup_id and row.file_path %}
                   <a class="mini-action blue" href="/api/backups/{{ row.backup_id }}/download" title="Download"><i data-lucide="download"></i></a>
                 {% endif %}

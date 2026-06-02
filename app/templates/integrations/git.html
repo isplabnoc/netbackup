@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Git</h1>
+    <p>Status do codigo implantado no container.</p>
+  </div>
+</div>
+
+<section class="panel-card integration-card">
+  <h2>Repositorio</h2>
+  <div class="integration-status">
+    <div><span>Disponivel</span><strong>{{ 'Sim' if git_info.available else 'Nao' }}</strong></div>
+    <div><span>Branch</span><strong>{{ git_info.branch }}</strong></div>
+    <div><span>Commit</span><strong>{{ git_info.commit }}</strong></div>
+  </div>
+  <pre class="integration-log">{{ git_info.status }}</pre>
+</section>
+{% endblock %}

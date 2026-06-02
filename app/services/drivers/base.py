@@ -14,10 +14,12 @@ class NetworkBackupDriver(ABC):
         host: str,
         username: str,
         password: str,
+        port: int = 22,
         enable_secret: str | None = None,
         output_dir: Path | None = None,
     ) -> None:
         self.host = host
+        self.port = port
         self.username = username
         self.password = password
         self.enable_secret = enable_secret
@@ -42,6 +44,7 @@ class NetmikoCommandDriver(NetworkBackupDriver):
         params = {
             "device_type": self.device_type,
             "host": self.host,
+            "port": self.port,
             "username": self.username,
             "password": self.password,
             "secret": self.enable_secret or "",

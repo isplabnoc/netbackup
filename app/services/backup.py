@@ -136,6 +136,7 @@ class BackupService:
             driver_cls = DRIVER_REGISTRY[device.vendor]
             driver = driver_cls(
                 host=device.ip,
+                port=device.ssh_port,
                 username=credential.username,
                 password=password,
                 enable_secret=enable_secret,

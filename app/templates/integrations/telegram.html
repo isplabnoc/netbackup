@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Telegram</h1>
+    <p>Envio real de alertas e resumos de backup via Bot API.</p>
+  </div>
+</div>
+
+{% if result %}
+<div class="alert alert-{{ 'success' if result == 'ok' else 'danger' }}">{{ message }}</div>
+{% endif %}
+
+<section class="panel-card integration-card">
+  <form class="stack-form" method="post" action="/integrations/telegram">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>Configuracao Telegram</h2>
+    <label class="form-label">Bot token</label>
+    <input class="form-control" name="telegram_bot_token" type="password" value="{{ notifications.telegram_bot_token or '' }}" required>
+    <label class="form-label">Chat ID</label>
+    <input class="form-control" name="telegram_chat_id" value="{{ notifications.telegram_chat_id or '' }}" required>
+    <button class="primary-action" type="submit">Salvar Telegram</button>
+  </form>
+
+  <form method="post" action="/integrations/telegram/test">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="secondary-action" type="submit">Enviar teste real</button>
+  </form>
+</section>
+{% endblock %}

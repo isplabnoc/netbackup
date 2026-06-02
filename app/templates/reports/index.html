@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Relatorios</h1>
+    <p>Resumo operacional calculado a partir dos dados reais do banco.</p>
+  </div>
+  <a class="secondary-action" href="/api/reports">JSON API</a>
+</div>
+
+<section class="kpi-grid reports-kpis">
+  <article class="kpi-card kpi-blue"><span class="kpi-icon"><i data-lucide="server"></i></span><div><small>Dispositivos</small><strong>{{ metrics.total_devices }}</strong><span>Cadastrados</span></div></article>
+  <article class="kpi-card kpi-green"><span class="kpi-icon"><i data-lucide="circle-check"></i></span><div><small>Sucesso</small><strong>{{ metrics.backup_success }}</strong><span>Backups OK</span></div></article>
+  <article class="kpi-card kpi-red"><span class="kpi-icon"><i data-lucide="circle-x"></i></span><div><small>Falhas</small><strong>{{ metrics.backup_failed }}</strong><span>Backups com erro</span></div></article>
+  <article class="kpi-card kpi-purple"><span class="kpi-icon"><i data-lucide="git-compare-arrows"></i></span><div><small>Alteracoes</small><strong>{{ metrics.changes_detected }}</strong><span>Ultimos 30 dias</span></div></article>
+</section>
+
+<section class="panel-card">
+  <header class="panel-title"><h2>Falhas por vendor</h2></header>
+  <table class="ops-table">
+    <thead><tr><th>Vendor</th><th>Total de falhas</th></tr></thead>
+    <tbody>
+      {% for row in metrics.failures_by_vendor %}
+      <tr><td>{{ row.label }}</td><td>{{ row.value }}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="empty-panel">Nenhuma falha registrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

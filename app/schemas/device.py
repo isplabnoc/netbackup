@@ -8,6 +8,7 @@ from app.models.device import Vendor
 class DeviceBase(BaseModel):
     hostname: str
     ip: str
+    ssh_port: int = 22
     vendor: Vendor
     platform: str
     credential_group_id: int
@@ -22,6 +23,7 @@ class DeviceCreate(DeviceBase):
 class DeviceUpdate(BaseModel):
     hostname: str | None = None
     ip: str | None = None
+    ssh_port: int | None = None
     vendor: Vendor | None = None
     platform: str | None = None
     credential_group_id: int | None = None

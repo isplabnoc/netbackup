@@ -39,4 +39,5 @@ class AppSettingsService:
             "evolution_api_url": self.get("evolution.api_url"),
             "evolution_api_token": self.get("evolution.api_token"),
             "evolution_api_instance": self.get("evolution.api_instance"),
+            "evolution_api_recipient": self.get("evolution.api_recipient"),
         }

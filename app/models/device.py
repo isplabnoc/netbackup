@@ -25,6 +25,7 @@ class Device(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     hostname: Mapped[str] = mapped_column(String(255), index=True)
     ip: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    ssh_port: Mapped[int] = mapped_column(Integer, default=22)
     vendor: Mapped[str] = mapped_column(String(80), index=True)
     platform: Mapped[str] = mapped_column(String(120))
     credential_group_id: Mapped[int] = mapped_column(ForeignKey("credentials.id"))

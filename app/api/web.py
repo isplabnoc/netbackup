@@ -1,3 +1,4 @@
+import subprocess
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -113,6 +114,7 @@ def devices_create(
     request: Request,
     hostname: str = Form(),
     ip: str = Form(),
+    ssh_port: int = Form(default=22),
     vendor: Vendor = Form(),
     platform: str = Form(),
     credential_group_id: int = Form(),
@@ -129,6 +131,7 @@ def devices_create(
             DeviceCreate(
                 hostname=hostname,
                 ip=ip,
+                ssh_port=ssh_port,
                 vendor=vendor,
                 platform=platform,
                 credential_group_id=credential_group_id,
@@ -176,6 +179,7 @@ def devices_update(
     request: Request,
     hostname: str = Form(),
     ip: str = Form(),
+    ssh_port: int = Form(default=22),
     vendor: Vendor = Form(),
     platform: str = Form(),
     credential_group_id: int = Form(),
@@ -196,6 +200,7 @@ def devices_update(
             {
                 "hostname": hostname,
                 "ip": ip,
+                "ssh_port": ssh_port,
                 "vendor": vendor.value,
                 "platform": platform,
                 "credential_group_id": credential_group_id,
@@ -376,9 +381,44 @@ def web_run_backups(
 
 @router.get("/diffs", response_class=HTMLResponse)
 def diffs_page(request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)) -> HTMLResponse:
+    device_id = request.query_params.get("device_id")
+    repo = DiffRepository(db)
+    diffs = repo.list_for_device(int(device_id)) if device_id and device_id.isdigit() else repo.list_recent()
     return templates.TemplateResponse(
         "diffs/index.html",
-        {"request": request, "user": user, "diffs": DiffRepository(db).list_recent()},
+        {"request": request, "user": user, "diffs": diffs, "device_id": device_id},
+    )
+
+
+@router.get("/reports", response_class=HTMLResponse)
+def reports_page(request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "reports/index.html",
+        {
+            "request": request,
+            "user": user,
+            "metrics": DashboardService(db).metrics(),
+        },
+    )
+
+
+@router.get("/vendors", response_class=HTMLResponse)
+def vendors_page(request: Request, db: Session = Depends(get_db), user=Depends(get_current_user)) -> HTMLResponse:
+    devices = DeviceRepository(db).list(limit=1000)
+    rows = []
+    for vendor in Vendor:
+        vendor_devices = [device for device in devices if device.vendor == vendor.value]
+        rows.append(
+            {
+                "vendor": vendor.value,
+                "total": len(vendor_devices),
+                "enabled": len([device for device in vendor_devices if device.enabled]),
+                "platforms": sorted({device.platform for device in vendor_devices if device.platform}),
+            }
+        )
+    return templates.TemplateResponse(
+        "vendors/index.html",
+        {"request": request, "user": user, "rows": rows},
     )
 
 
@@ -397,6 +437,7 @@ def settings_page(
             "scheduler": settings_service.scheduler_config(),
             "notifications": settings_service.notification_config(),
             "retention_days": RetentionService(db).retention_days(),
+            "notification_test": request.query_params.get("notification_test"),
             "csrf_token": generate_csrf_token(request),
         },
     )
@@ -413,6 +454,7 @@ def settings_save(
     evolution_api_url: str | None = Form(default=None),
     evolution_api_token: str | None = Form(default=None),
     evolution_api_instance: str | None = Form(default=None),
+    evolution_api_recipient: str | None = Form(default=None),
     retention_days: int = Form(default=365),
     csrf_token: str = Form(),
     db: Session = Depends(get_db),
@@ -428,6 +470,7 @@ def settings_save(
     settings_service.set("evolution.api_url", evolution_api_url or None)
     settings_service.set("evolution.api_token", evolution_api_token or None, encrypted=True)
     settings_service.set("evolution.api_instance", evolution_api_instance or None)
+    settings_service.set("evolution.api_recipient", evolution_api_recipient or None)
     settings_service.set("retention.days", str(retention_days))
     reload_scheduler()
     AuditService(db).record("update", "settings", "system", user, request.client.host if request.client else None)
@@ -442,9 +485,11 @@ def settings_test_notifications(
     user=Depends(require_role(Role.admin)),
 ) -> RedirectResponse:
     validate_csrf_token(request, csrf_token)
-    NotificationService.from_db(AppSettingsService(db)).send_test()
+    results = NotificationService.from_db(AppSettingsService(db)).send_test()
     AuditService(db).record("test", "notifications", "system", user, request.client.host if request.client else None)
-    return RedirectResponse("/settings", status_code=303)
+    failed = [result.channel for result in results if not result.success]
+    status_value = "fail" if failed else "ok"
+    return RedirectResponse(f"/settings?notification_test={status_value}", status_code=303)
 
 
 @router.post("/settings/run-retention")
@@ -458,6 +503,164 @@ def settings_run_retention(
     RetentionService(db).cleanup()
     AuditService(db).record("run", "retention", "system", user, request.client.host if request.client else None)
     return RedirectResponse("/settings", status_code=303)
+
+
+@router.get("/integrations/telegram", response_class=HTMLResponse)
+def telegram_integration_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> HTMLResponse:
+    settings_service = AppSettingsService(db)
+    return templates.TemplateResponse(
+        "integrations/telegram.html",
+        {
+            "request": request,
+            "user": user,
+            "notifications": settings_service.notification_config(),
+            "result": request.query_params.get("result"),
+            "message": request.query_params.get("message"),
+            "csrf_token": generate_csrf_token(request),
+        },
+    )
+
+
+@router.post("/integrations/telegram")
+def telegram_integration_save(
+    request: Request,
+    telegram_bot_token: str | None = Form(default=None),
+    telegram_chat_id: str | None = Form(default=None),
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    settings_service = AppSettingsService(db)
+    settings_service.set("telegram.bot_token", telegram_bot_token or None, encrypted=True)
+    settings_service.set("telegram.chat_id", telegram_chat_id or None)
+    AuditService(db).record("update", "integration", "telegram", user, request.client.host if request.client else None)
+    return RedirectResponse("/integrations/telegram?result=ok&message=Configuracao+salva", status_code=303)
+
+
+@router.post("/integrations/telegram/test")
+def telegram_integration_test(
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    result = NotificationService.from_db(AppSettingsService(db)).send_telegram(
+        "NetBackup Pro: teste real de notificacao Telegram"
+    )
+    AuditService(db).record("test", "integration", "telegram", user, request.client.host if request.client else None)
+    status_value = "ok" if result.success else "fail"
+    return RedirectResponse(
+        f"/integrations/telegram?result={status_value}&message={quote(result.message)}",
+        status_code=303,
+    )
+
+
+@router.get("/integrations/evolution", response_class=HTMLResponse)
+def evolution_integration_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> HTMLResponse:
+    settings_service = AppSettingsService(db)
+    return templates.TemplateResponse(
+        "integrations/evolution.html",
+        {
+            "request": request,
+            "user": user,
+            "notifications": settings_service.notification_config(),
+            "result": request.query_params.get("result"),
+            "message": request.query_params.get("message"),
+            "csrf_token": generate_csrf_token(request),
+        },
+    )
+
+
+@router.post("/integrations/evolution")
+def evolution_integration_save(
+    request: Request,
+    evolution_api_url: str | None = Form(default=None),
+    evolution_api_token: str | None = Form(default=None),
+    evolution_api_instance: str | None = Form(default=None),
+    evolution_api_recipient: str | None = Form(default=None),
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    settings_service = AppSettingsService(db)
+    settings_service.set("evolution.api_url", evolution_api_url or None)
+    settings_service.set("evolution.api_token", evolution_api_token or None, encrypted=True)
+    settings_service.set("evolution.api_instance", evolution_api_instance or None)
+    settings_service.set("evolution.api_recipient", evolution_api_recipient or None)
+    AuditService(db).record("update", "integration", "evolution", user, request.client.host if request.client else None)
+    return RedirectResponse("/integrations/evolution?result=ok&message=Configuracao+salva", status_code=303)
+
+
+@router.post("/integrations/evolution/test")
+def evolution_integration_test(
+    request: Request,
+    csrf_token: str = Form(),
+    db: Session = Depends(get_db),
+    user=Depends(require_role(Role.admin)),
+) -> RedirectResponse:
+    validate_csrf_token(request, csrf_token)
+    result = NotificationService.from_db(AppSettingsService(db)).send_evolution(
+        "NetBackup Pro: teste real de notificacao Evolution API"
+    )
+    AuditService(db).record("test", "integration", "evolution", user, request.client.host if request.client else None)
+    status_value = "ok" if result.success else "fail"
+    return RedirectResponse(
+        f"/integrations/evolution?result={status_value}&message={quote(result.message)}",
+        status_code=303,
+    )
+
+
+@router.get("/integrations/git", response_class=HTMLResponse)
+def git_integration_page(
+    request: Request,
+    user=Depends(require_role(Role.admin)),
+) -> HTMLResponse:
+    git_info = {"available": False, "branch": "-", "commit": "-", "status": "Repositorio Git indisponivel."}
+    try:
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout.strip()
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout.strip()
+        status_text = subprocess.run(
+            ["git", "status", "--short"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout.strip()
+        git_info = {
+            "available": True,
+            "branch": branch,
+            "commit": commit,
+            "status": status_text or "Working tree limpo.",
+        }
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        git_info["status"] = str(exc)
+    return templates.TemplateResponse(
+        "integrations/git.html",
+        {"request": request, "user": user, "git_info": git_info},
+    )
 
 
 @router.get("/users", response_class=HTMLResponse)

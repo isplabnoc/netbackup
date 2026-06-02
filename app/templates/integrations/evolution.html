@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>WhatsApp Evolution</h1>
+    <p>Envio real de alertas e resumos de backup pela Evolution API.</p>
+  </div>
+</div>
+
+{% if result %}
+<div class="alert alert-{{ 'success' if result == 'ok' else 'danger' }}">{{ message }}</div>
+{% endif %}
+
+<section class="panel-card integration-card">
+  <form class="stack-form" method="post" action="/integrations/evolution">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <h2>Configuracao Evolution API</h2>
+    <label class="form-label">URL da API</label>
+    <input class="form-control" name="evolution_api_url" placeholder="https://evolution.seudominio.com" value="{{ notifications.evolution_api_url or '' }}" required>
+    <label class="form-label">API token</label>
+    <input class="form-control" name="evolution_api_token" type="password" value="{{ notifications.evolution_api_token or '' }}" required>
+    <label class="form-label">Instancia</label>
+    <input class="form-control" name="evolution_api_instance" value="{{ notifications.evolution_api_instance or '' }}" required>
+    <label class="form-label">Numero destino</label>
+    <input class="form-control" name="evolution_api_recipient" placeholder="5599999999999" value="{{ notifications.evolution_api_recipient or '' }}" required>
+    <button class="primary-action" type="submit">Salvar WhatsApp</button>
+  </form>
+
+  <form method="post" action="/integrations/evolution/test">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="secondary-action" type="submit">Enviar teste real</button>
+  </form>
+</section>
+{% endblock %}

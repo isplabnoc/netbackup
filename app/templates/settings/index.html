@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
+{% if notification_test %}
+<div class="alert alert-{{ 'success' if notification_test == 'ok' else 'danger' }}">
+  {{ 'Teste de notificacoes enviado com sucesso.' if notification_test == 'ok' else 'Falha ao enviar uma ou mais notificacoes. Verifique as integracoes.' }}
+</div>
+{% endif %}
 <form class="panel" method="post" action="/settings">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <div class="row g-4">
@@ -24,6 +29,7 @@
       <input class="form-control mb-2" name="evolution_api_url" placeholder="URL" value="{{ notifications.evolution_api_url or '' }}">
       <input class="form-control mb-2" name="evolution_api_token" type="password" placeholder="API token" value="{{ notifications.evolution_api_token or '' }}">
       <input class="form-control mb-3" name="evolution_api_instance" placeholder="Instância" value="{{ notifications.evolution_api_instance or '' }}">
+      <input class="form-control mb-3" name="evolution_api_recipient" placeholder="Numero destino" value="{{ notifications.evolution_api_recipient or '' }}">
     </div>
     <div class="col-12 col-xl-4">
       <h2 class="h6 mb-3">Retenção</h2>
