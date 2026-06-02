@@ -124,7 +124,28 @@ INSTALL_UFW=true
 
 ## Instalação No EasyPanel
 
-O EasyPanel ja fornece proxy HTTPS, entao use `docker-compose.easypanel.yml`, sem o container Nginx.
+### Modo Recomendado: App Via GitHub + Dockerfile
+
+Use este modo para seguir o mesmo fluxo do NOC360 no EasyPanel.
+
+```text
+Owner: isplabnoc
+Repository: netbackup
+Branch: main
+Build Path: /
+Build Type: Dockerfile
+Proxy Port: 8000
+```
+
+Crie um serviço Postgres separado no EasyPanel e configure `DATABASE_URL` apontando para ele. O container do app executa as migrations automaticamente no boot.
+
+Guia completo:
+
+[docs/EASYPANEL_APP_DEPLOY.md](docs/EASYPANEL_APP_DEPLOY.md)
+
+### Modo Alternativo: Compose
+
+O EasyPanel ja fornece proxy HTTPS, entao, se for usar Compose, use `docker-compose.easypanel.yml`, sem o container Nginx.
 
 1. Suba o projeto para um repositorio Git.
 2. No EasyPanel, crie um projeto, por exemplo `netbackup`.
