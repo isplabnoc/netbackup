@@ -15,7 +15,10 @@ router = APIRouter(prefix="/api/backups", tags=["backups"])
 
 
 @router.get("", response_model=list[BackupRead])
-def list_backups(db: Session = Depends(get_db)) -> list[BackupRead]:
+def list_backups(
+    db: Session = Depends(get_db),
+    _user=Depends(require_role(Role.viewer)),
+) -> list[BackupRead]:
     return [BackupRead.model_validate(backup) for backup in BackupRepository(db).list(limit=500)]
 
 

@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_role
+from app.core.rbac import Role
 from app.database.session import get_db
 from app.models.backup import Backup, BackupStatus
 from app.models.device import Device
@@ -39,5 +41,3 @@ def reports(
         "changes_detected": changes,
         "failures_by_vendor": [{"vendor": vendor, "total": total} for vendor, total in failures_by_vendor],
     }
-from app.api.deps import require_role
-from app.core.rbac import Role
