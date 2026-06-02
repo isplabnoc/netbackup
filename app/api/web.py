@@ -348,7 +348,7 @@ def backups_page(request: Request, db: Session = Depends(get_db), user=Depends(g
     try:
         backups = BackupRepository(db).list_recent(limit=500)
         jobs = BackupJobRepository(db).list_recent(limit=100)
-    except SQLAlchemyError as exc:
+    except (RuntimeError, SQLAlchemyError, ValueError) as exc:
         db.rollback()
         load_error = str(exc)
     return templates.TemplateResponse(
