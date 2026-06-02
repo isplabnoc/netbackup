@@ -63,6 +63,10 @@ random_secret() {
   openssl rand -base64 48 | tr -d '\n'
 }
 
+random_hex_secret() {
+  openssl rand -hex 32
+}
+
 install_base_packages() {
   log "Atualizando pacotes base"
   apt-get update
@@ -127,10 +131,10 @@ write_env() {
   local env_file="${APP_DIR}/.env"
 
   if [[ -z "${POSTGRES_PASSWORD}" ]]; then
-    POSTGRES_PASSWORD="$(random_secret)"
+    POSTGRES_PASSWORD="$(random_hex_secret)"
   fi
   if [[ -z "${ADMIN_PASSWORD}" ]]; then
-    ADMIN_PASSWORD="$(random_secret)"
+    ADMIN_PASSWORD="$(random_hex_secret)"
   fi
 
   log "Gerando ${env_file}"
