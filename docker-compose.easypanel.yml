@@ -1,0 +1,45 @@
+services:
+  app:
+    build: .
+    environment:
+      APP_NAME: ${APP_NAME:-NetBackup Pro}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      FERNET_KEY: ${FERNET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      BACKUP_ROOT: /app/backups
+      BACKUP_WORKERS: ${BACKUP_WORKERS:-30}
+      DAILY_BACKUP_CRON_HOUR: ${DAILY_BACKUP_CRON_HOUR:-2}
+      DAILY_BACKUP_CRON_MINUTE: ${DAILY_BACKUP_CRON_MINUTE:-0}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      EVOLUTION_API_URL: ${EVOLUTION_API_URL:-}
+      EVOLUTION_API_TOKEN: ${EVOLUTION_API_TOKEN:-}
+      EVOLUTION_API_INSTANCE: ${EVOLUTION_API_INSTANCE:-}
+    depends_on:
+      - postgres
+    volumes:
+      - backups:/app/backups
+      - logs:/app/logs
+    expose:
+      - "8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-netaudit}
+      POSTGRES_USER: ${POSTGRES_USER:-netaudit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+
+volumes:
+  postgres_data:
+  backups:
+  logs:

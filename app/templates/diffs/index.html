@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+{% for diff in diffs %}
+<section class="diff-panel mb-4">
+  <div class="diff-header">
+    <strong>{{ diff.device.hostname }}</strong>
+    <span class="text-success">+{{ diff.added_lines }}</span>
+    <span class="text-danger">-{{ diff.removed_lines }}</span>
+    <span class="text-secondary">{{ diff.created_at }}</span>
+  </div>
+  <div class="diff-body">{{ diff.html | safe }}</div>
+</section>
+{% else %}
+<p class="text-secondary">Nenhuma alteração detectada.</p>
+{% endfor %}
+{% endblock %}

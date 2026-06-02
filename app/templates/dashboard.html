@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block content %}
+{% set total_devices = metrics.total_devices or 120 %}
+{% set success_total = metrics.backup_success or 118 %}
+{% set failed_total = metrics.backup_failed or 2 %}
+{% set last_backup = metrics.last_backup or "02:00:00" %}
+{% set changed_total = metrics.changes_detected or 120 %}
+
+<section class="dashboard-head">
+  <div>
+    <h1>Olá, {{ user.email.split('@')[0] if user is defined else "admin" }}! <span>👋</span></h1>
+    <p>Bem-vindo ao NetBackup Pro - Plataforma de Backup de Dispositivos de Rede</p>
+  </div>
+  <time class="clock-card" datetime="2026-06-01T02:00:15">
+    <strong>02:00:15</strong>
+    <span>01/06/2026</span>
+  </time>
+</section>
+
+<section class="kpi-grid" aria-label="Indicadores principais">
+  <article class="kpi-card kpi-blue">
+    <span class="kpi-icon"><i data-lucide="server"></i></span>
+    <div><small>Dispositivos</small><strong>{{ total_devices }}</strong><span>Total cadastrados</span></div>
+  </article>
+  <article class="kpi-card kpi-green">
+    <span class="kpi-icon"><i data-lucide="circle-check"></i></span>
+    <div><small>Backups OK</small><strong>{{ success_total }}</strong><span>98.3% sucesso</span></div>
+  </article>
+  <article class="kpi-card kpi-red">
+    <span class="kpi-icon"><i data-lucide="circle-x"></i></span>
+    <div><small>Backups com Falha</small><strong>{{ failed_total }}</strong><span>1.7% falhas</span></div>
+  </article>
+  <article class="kpi-card kpi-purple">
+    <span class="kpi-icon"><i data-lucide="clock-3"></i></span>
+    <div><small>Último Backup</small><strong>{{ last_backup }}</strong><span>Hoje</span></div>
+  </article>
+  <article class="kpi-card kpi-cyan">
+    <span class="kpi-icon"><i data-lucide="cloud-download"></i></span>
+    <div><small>Arquivos (Hoje)</small><strong>{{ changed_total }}</strong><span>Backups salvos</span></div>
+  </article>
+</section>
+
+<section class="dashboard-grid">
+  <article class="panel-card latest-backups">
+    <header class="panel-title">
+      <h2>Últimos Backups</h2>
+      <form method="post" action="/backups/run">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token if csrf_token is defined else '' }}">
+        <button class="primary-action" type="submit">Executar Backup Agora</button>
+      </form>
+    </header>
+    <div class="table-responsive">
+      <table class="ops-table">
+        <thead>
+          <tr><th>Hostname</th><th>IP</th><th>Vendor / Plataforma</th><th>Status</th><th>Último Backup</th><th>Ações</th></tr>
+        </thead>
+        <tbody>
+          {% set rows = [
+            ("SW-CORE01", "10.10.104.5", "Dell OS10", "OK", "01/06/2026 02:00:01"),
+            ("SW-CORE02", "10.10.104.6", "Dell OS10", "OK", "01/06/2026 02:00:03"),
+            ("SW-ACCESS01", "10.10.104.10", "Dell OS6", "OK", "01/06/2026 02:00:02"),
+            ("SW-ACCESS02", "10.10.104.11", "Dell OS6", "FAIL", "01/06/2026 02:00:04"),
+            ("MKT-CORE01", "10.10.104.20", "MikroTik", "OK", "01/06/2026 02:00:05"),
+            ("CISCO-EDGE01", "10.10.104.30", "Cisco IOS", "OK", "01/06/2026 02:00:01"),
+            ("FGT-FW01", "10.10.104.40", "FortiGate", "FAIL", "01/06/2026 02:00:06"),
+            ("F5-LB01", "10.10.104.50", "F5 BIG-IP", "OK", "01/06/2026 02:00:03")
+          ] %}
+          {% for hostname, ip, vendor, status, backup_time in rows %}
+          <tr>
+            <td><span class="state-dot {{ 'bad' if status == 'FAIL' else '' }}"></span>{{ hostname }}</td>
+            <td>{{ ip }}</td>
+            <td>{{ vendor }}</td>
+            <td><span class="status-pill {{ 'fail' if status == 'FAIL' else 'ok' }}">{{ status }}</span></td>
+            <td>{{ backup_time }}</td>
+            <td>
+              <div class="action-row">
+                <button class="mini-action cyan" type="button" title="Visualizar"><i data-lucide="eye"></i></button>
+                <button class="mini-action amber" type="button" title="Diff"><i data-lucide="scan-text"></i></button>
+                <button class="mini-action blue" type="button" title="Download"><i data-lucide="download"></i></button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <footer class="panel-footer"><span>Mostrando 1 a 8 de {{ total_devices }} dispositivos</span><a href="/devices">Ver todos</a></footer>
+  </article>
+
+  <aside class="side-stack">
+    <article class="panel-card status-panel">
+      <h2>Status dos Backups <span>(Últimos 7 dias)</span></h2>
+      <div class="donut-layout">
+        <div class="donut-wrap"><canvas id="statusDonut"></canvas><div class="donut-center"><strong>{{ total_devices }}</strong><span>Total</span></div></div>
+        <div class="legend-list">
+          <div><span class="legend green"></span>OK <strong>685 (96.5%)</strong></div>
+          <div><span class="legend red"></span>Falha <strong>25 (3.5%)</strong></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="panel-card notifications">
+      <header class="panel-title compact"><h2>Notificações Recentes</h2><a href="/docs">Ver todas</a></header>
+      <div class="notification-item">
+        <span class="round-action telegram"><i data-lucide="send"></i></span>
+        <div><strong>Backup finalizado com sucesso</strong><span>118 OK, 2 Falhas</span></div>
+        <time>01/06/2026 02:00</time><em class="tag success">Sucesso</em>
+      </div>
+      <div class="notification-item">
+        <span class="round-action whatsapp"><i data-lucide="message-circle"></i></span>
+        <div><strong>Backup finalizado com falhas</strong><span>Dispositivos: SW-ACCESS02, FGT-FW01</span></div>
+        <time>01/06/2026 02:00</time><em class="tag danger">Alerta</em>
+      </div>
+      <div class="notification-item">
+        <span class="round-action telegram"><i data-lucide="send"></i></span>
+        <div><strong>Agendamento executado</strong><span>Backup diário 02:00</span></div>
+        <time>01/06/2026 02:00</time><em class="tag info">Info</em>
+      </div>
+    </article>
+  </aside>
+</section>
+
+<section class="lower-grid">
+  <article class="panel-card history-card">
+    <h2>Histórico de Backups - <span>SW-CORE01</span></h2>
+    <table class="ops-table compact-table">
+      <thead><tr><th>Data/Hora</th><th>Versão</th><th>Tamanho</th><th>Ações</th></tr></thead>
+      <tbody>
+        {% for date, version, size in [
+          ("01/06/2026 02:00:01", "v20260601020001", "48.2 KB"),
+          ("31/05/2026 02:00:01", "v20260531020001", "47.8 KB"),
+          ("30/05/2026 02:00:01", "v20260530020001", "47.5 KB"),
+          ("29/05/2026 02:00:01", "v20260529020001", "47.7 KB"),
+          ("28/05/2026 02:00:01", "v20260528020001", "47.5 KB")
+        ] %}
+        <tr>
+          <td>{{ date }}</td><td>{{ version }}</td><td>{{ size }}</td>
+          <td><div class="action-row"><button class="mini-action blue" type="button"><i data-lucide="eye"></i></button><button class="mini-action amber" type="button"><i data-lucide="scan-text"></i></button><button class="mini-action blue" type="button"><i data-lucide="download"></i></button><button class="mini-action red" type="button"><i data-lucide="trash-2"></i></button></div></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <a class="panel-link" href="/backups">Ver histórico completo</a>
+  </article>
+
+  <article class="panel-card diff-preview">
+    <header class="panel-title compact">
+      <h2>Diff - <span>SW-CORE01 (31/05/2026 vs 01/06/2026)</span></h2>
+      <button class="secondary-action" type="button">Baixar Diff</button>
+    </header>
+    <div class="split-diff">
+      <div>
+        <h3>31/05/2026 02:00:01</h3>
+        <pre><span>1</span> interface vlan 100
+<span>2</span>  description Usuarios
+<span>3</span><mark class="removed"> ip address 10.1.1.1/24</mark>
+<span>4</span>  no shutdown
+<span>5</span>
+<span>6</span> interface vlan 200
+<span>7</span>  description Servidores
+<span>8</span><mark class="removed"> ip address 10.2.2.1/24</mark>
+<span>9</span>  no shutdown</pre>
+      </div>
+      <div>
+        <h3>01/06/2026 02:00:01</h3>
+        <pre><span>1</span> interface vlan 100
+<span>2</span>  description Usuarios
+<span>3</span><mark class="added"> ip address 10.2.2.1/24</mark>
+<span>4</span>  no shutdown
+<span>5</span>
+<span>6</span> interface vlan 200
+<span>7</span>  description Servidores
+<span>8</span><mark class="added"> ip address 10.3.3.1/24</mark>
+<span>9</span>  no shutdown</pre>
+      </div>
+    </div>
+    <a class="panel-link" href="/diffs">Ver diff completo</a>
+  </article>
+</section>
+
+<footer class="app-footer">NetBackup Pro © 2026 - Todos os direitos reservados</footer>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.dashboardMetrics = {{ metrics | tojson }};
+</script>
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

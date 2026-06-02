@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-xl-8">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Hostname</th><th>IP</th><th>Vendor</th><th>Platform</th><th>Location</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for device in devices %}
+          <tr>
+            <td>{{ device.hostname }}</td>
+            <td>{{ device.ip }}</td>
+            <td>{{ device.vendor }}</td>
+            <td>{{ device.platform }}</td>
+            <td>{{ device.location or "-" }}</td>
+            <td><span class="badge text-bg-{{ 'success' if device.enabled else 'secondary' }}">{{ 'enabled' if device.enabled else 'disabled' }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">Nenhum dispositivo cadastrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <form class="panel" method="post" action="/devices">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <h2 class="h6 mb-3">Novo dispositivo</h2>
+      <input class="form-control mb-2" name="hostname" placeholder="hostname" required>
+      <input class="form-control mb-2" name="ip" placeholder="ip" required>
+      <select class="form-select mb-2" name="vendor" required>
+        {% for vendor in vendors %}<option value="{{ vendor }}">{{ vendor }}</option>{% endfor %}
+      </select>
+      <input class="form-control mb-2" name="platform" placeholder="platform" required>
+      <select class="form-select mb-2" name="credential_group_id" required>
+        {% for credential in credentials %}<option value="{{ credential.id }}">{{ credential.name }}</option>{% endfor %}
+      </select>
+      <input class="form-control mb-3" name="location" placeholder="location">
+      <button class="btn btn-primary w-100" type="submit">Salvar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
