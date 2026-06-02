@@ -315,18 +315,18 @@ button, input, select { font: inherit; }
 .ops-table {
   width: 100%;
   border-collapse: collapse;
-  color: #eef6ff;
-  background: transparent;
+  color: #eef6ff !important;
+  background: transparent !important;
 }
 .ops-table th, .ops-table td {
   padding: 10px 18px;
   border-bottom: 1px solid rgba(130, 159, 189, .2);
   white-space: nowrap;
   vertical-align: middle;
-  background: transparent;
+  background: transparent !important;
 }
-.ops-table th { color: #fff; font-weight: 800; }
-.ops-table td { color: #dbe8f8; }
+.ops-table th { color: #fff !important; font-weight: 800; }
+.ops-table td { color: #dbe8f8 !important; }
 .ops-table tbody tr:hover { background: rgba(41, 72, 103, .18); }
 .state-dot {
   display: inline-block;
@@ -379,7 +379,7 @@ button, input, select { font: inherit; }
 }
 .devices-list { overflow: visible; }
 .devices-list .table-responsive {
-  background: rgba(7, 20, 32, .38);
+  background: rgba(7, 20, 32, .38) !important;
 }
 .device-form-card {
   padding: 20px;
@@ -394,20 +394,20 @@ button, input, select { font: inherit; }
 .form-control,
 .form-select {
   min-height: 42px;
-  color: #eaf3ff;
-  background-color: rgba(20, 34, 50, .92);
-  border: 1px solid var(--line-bright);
+  color: #eaf3ff !important;
+  background-color: rgba(20, 34, 50, .92) !important;
+  border: 1px solid var(--line-bright) !important;
   border-radius: 6px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .03);
 }
 .form-control:focus,
 .form-select:focus {
-  color: #fff;
-  background-color: rgba(25, 43, 63, .98);
-  border-color: rgba(83, 151, 255, .82);
-  box-shadow: 0 0 0 3px rgba(18, 103, 243, .18);
+  color: #fff !important;
+  background-color: rgba(25, 43, 63, .98) !important;
+  border-color: rgba(83, 151, 255, .82) !important;
+  box-shadow: 0 0 0 3px rgba(18, 103, 243, .18) !important;
 }
-.form-control::placeholder { color: #9caec1; opacity: 1; }
+.form-control::placeholder { color: #9caec1 !important; opacity: 1; }
 .form-select {
   --bs-form-select-bg-img: none;
   appearance: auto;
@@ -420,6 +420,43 @@ button, input, select { font: inherit; }
   background-color: var(--blue);
   border-color: var(--blue);
 }
+.content .panel,
+.content form.panel {
+  background: linear-gradient(135deg, rgba(13, 30, 46, .94), rgba(11, 27, 42, .88)) !important;
+  border: 1px solid var(--line-bright) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, .16) !important;
+}
+.content .btn-primary {
+  border: 0 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #1d7dff, #075bd8) !important;
+}
+.content .btn-danger {
+  border: 0 !important;
+  color: #fff !important;
+  background: #ef3c49 !important;
+}
+.content .btn-outline-info {
+  color: #9defff !important;
+  border-color: rgba(32, 199, 217, .62) !important;
+  background: rgba(18, 189, 216, .12) !important;
+}
+.content .btn-outline-warning {
+  color: #ffd27a !important;
+  border-color: rgba(246, 166, 9, .62) !important;
+  background: rgba(246, 166, 9, .12) !important;
+}
+.content .badge.text-bg-success,
+.content .badge.text-bg-secondary,
+.content .badge.text-bg-danger,
+.content .badge.text-bg-warning {
+  color: #fff !important;
+}
+.content .badge.text-bg-success { background: #18843a !important; }
+.content .badge.text-bg-secondary { background: #65758b !important; }
+.content .badge.text-bg-danger { background: #d73e45 !important; }
+.content .badge.text-bg-warning { background: #f4a000 !important; }
 .row-actions { position: relative; }
 .row-actions summary {
   display: inline-flex;
@@ -449,22 +486,28 @@ button, input, select { font: inherit; }
   grid-column: 1 / -1;
 }
 .table-responsive {
+  background: rgba(7, 20, 32, .38) !important;
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
   scrollbar-color: rgba(121, 159, 198, .48) transparent;
 }
 .table {
-  --bs-table-bg: transparent;
-  --bs-table-color: #dbe8f8;
-  --bs-table-border-color: rgba(130, 159, 189, .2);
-  --bs-table-hover-bg: rgba(41, 72, 103, .18);
-  --bs-table-hover-color: #fff;
-  color: #dbe8f8;
+  --bs-table-bg: transparent !important;
+  --bs-table-color: #dbe8f8 !important;
+  --bs-table-border-color: rgba(130, 159, 189, .2) !important;
+  --bs-table-hover-bg: rgba(41, 72, 103, .18) !important;
+  --bs-table-hover-color: #fff !important;
+  color: #dbe8f8 !important;
+  margin-bottom: 0;
 }
 .table th {
-  color: #fff;
+  color: #fff !important;
   font-weight: 800;
+  background: transparent !important;
 }
 .table td {
-  color: #dbe8f8;
+  color: #dbe8f8 !important;
+  background: transparent !important;
 }
 .alert {
   margin: 14px 18px;
